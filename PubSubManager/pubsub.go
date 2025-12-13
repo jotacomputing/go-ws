@@ -16,7 +16,7 @@ var once sync.Once
 type  PubSubManager struct{
 	rclient 		*redis.Client 
 	BroadCaster 	contracts.BroadCaster
-	subscriptions 	map[string]*redis.PubSub // keeps a track of what all streams are we subscribed to 
+	Subscriptions 	map[string]*redis.PubSub // keeps a track of what all streams are we subscribed to 
 	mu 				sync.Mutex
 }
 
@@ -33,7 +33,7 @@ func CreateSingletonInstance(broadcaster contracts.BroadCaster) *PubSubManager{
 		PubSubManagerInstance = &PubSubManager{
 			rclient: client,
 			BroadCaster: broadcaster,
-			subscriptions:  make(map[string]*redis.PubSub),
+			Subscriptions:  make(map[string]*redis.PubSub),
 		}
 	})
 
@@ -47,13 +47,13 @@ func getPubSubManagerInstance() *PubSubManager{
 
 func (ps *PubSubManager)SubscribeToSymbolMethod(StreamName string){
 	ps.mu.Lock()
-	if _, already := ps.subscriptions[StreamName]; already {
+	if _, already := ps.Subscriptions[StreamName]; already {
 		ps.mu.Unlock()
 		return
 	}
 	// if not subscibed
 	pubsub := ps.rclient.Subscribe(context.Background(), StreamName)
-	ps.subscriptions[StreamName] = pubsub
+	ps.Subscriptions[StreamName] = pubsub
 	ps.mu.Unlock()
 
 	
@@ -76,12 +76,12 @@ func (ps *PubSubManager)SubscribeToSymbolMethod(StreamName string){
 func (ps *PubSubManager) UnSubscribeToSymbolMethod(StreamName string) {
     ps.mu.Lock()
 	// take out the pubsusb obj
-    pubsub, exists := ps.subscriptions[StreamName]
+    pubsub, exists := ps.Subscriptions[StreamName]
     if !exists {
         ps.mu.Unlock()
         return 
     }
-    delete(ps.subscriptions, StreamName)
+    delete(ps.Subscriptions, StreamName)
     ps.mu.Unlock()
 
     if err := pubsub.Unsubscribe(context.Background(), StreamName); err != nil {
@@ -92,3 +92,4 @@ func (ps *PubSubManager) UnSubscribeToSymbolMethod(StreamName string) {
         fmt.Println("Error closing pubsub:", err)
     }
 }
+

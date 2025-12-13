@@ -27,9 +27,9 @@ func (c *Client) WriteMessage(messageType int, data []byte) error {
 }
 
 type SymbolManager struct {
-	symbol_method_subs map[string][]*Client        // keeps a track of the different streams and the subscirbed clients     
-	subscriber         contracts.Subscriber
-	unsubscriber 		contracts.UnSubscriber
+	Symbol_method_subs map[string][]*Client        // keeps a track of the different streams and the subscirbed clients     
+	Subscriber         contracts.Subscriber
+	Unsubscriber 		contracts.UnSubscriber
 	mutex_lock         sync.RWMutex // this because their can be read write race conditions while updating the map becuase
 	// it is hapoening in differnet go routines
 }
@@ -37,9 +37,9 @@ type SymbolManager struct {
 func CreateSymbolManagerSingleton() *SymbolManager {
 	once.Do(func() {
 		SymbolManagerInstance = &SymbolManager{
-			symbol_method_subs: make(map[string][]*Client),
-			subscriber:         nil,
-			unsubscriber: nil,
+			Symbol_method_subs: make(map[string][]*Client),
+			Subscriber:         nil,
+			Unsubscriber: 		nil,
 		}
 	})
 	return SymbolManagerInstance
@@ -67,16 +67,16 @@ func (s *SymbolManager) handleSubscribe(rec_mess ws.ClientMessage) {
 	if len(rec_mess.Payload.Params) == 0{
 		return 
 	}
-	_ , ok := s.symbol_method_subs[rec_mess.Payload.Params[0]]
+	_ , ok := s.Symbol_method_subs[rec_mess.Payload.Params[0]]
 	s.mutex_lock.RUnlock()
 	if !ok{
 		s.CreateNewGroup(rec_mess)
 		// subscription can take time so spawned a go routine 
-		go s.subscriber.SubscribeToSymbolMethod(rec_mess.Payload.Params[0])
+		go s.Subscriber.SubscribeToSymbolMethod(rec_mess.Payload.Params[0])
 		return 
 	}
 	s.mutex_lock.Lock()
-	s.symbol_method_subs[rec_mess.Payload.Params[0]] = append(s.symbol_method_subs[rec_mess.Payload.Params[0]], &Client{Conn: rec_mess.Socket})
+	s.Symbol_method_subs[rec_mess.Payload.Params[0]] = append(s.Symbol_method_subs[rec_mess.Payload.Params[0]], &Client{Conn: rec_mess.Socket})
 	s.mutex_lock.Unlock()
 
 }
@@ -86,7 +86,7 @@ func (s *SymbolManager) handleUnSubscribe(rec_mess ws.ClientMessage) {
 	// aquire a read lock and check if it was the only user subscrbed to that event 
 	s.mutex_lock.Lock()
 	defer s.mutex_lock.Unlock()
-	clients, exists := s.symbol_method_subs[rec_mess.Payload.Params[0]]
+	clients, exists := s.Symbol_method_subs[rec_mess.Payload.Params[0]]
     if !exists {
         return  // Already unsubscribed
     }
@@ -101,13 +101,13 @@ func (s *SymbolManager) handleUnSubscribe(rec_mess ws.ClientMessage) {
 
 	if len(new_clients) == 0{
 		// this was the last user , delrte the entry and unsbscribe
-		delete(s.symbol_method_subs , rec_mess.Payload.Params[0])
-		if s.unsubscriber!=nil{
-			s.unsubscriber.UnSubscribeToSymbolMethod(rec_mess.Payload.Params[0])
+		delete(s.Symbol_method_subs , rec_mess.Payload.Params[0])
+		if s.Unsubscriber!=nil{
+			s.Unsubscriber.UnSubscribeToSymbolMethod(rec_mess.Payload.Params[0])
 		}
 		
 	}else{
-		s.symbol_method_subs[rec_mess.Payload.Params[0]] = new_clients
+		s.Symbol_method_subs[rec_mess.Payload.Params[0]] = new_clients
 	}
 }
 
@@ -120,7 +120,7 @@ func (s *SymbolManager)CreateNewGroup(rec_mess ws.ClientMessage){
 	if rec_mess.Socket != nil{
 		clients = append(clients, &Client{Conn: rec_mess.Socket})
 	}
-	s.symbol_method_subs[rec_mess.Payload.Params[0]] = clients
+	s.Symbol_method_subs[rec_mess.Payload.Params[0]] = clients
 
 	// the pub sub subscription is handled in the above function 
 }
@@ -128,7 +128,7 @@ func (s *SymbolManager)CreateNewGroup(rec_mess ws.ClientMessage){
 
 func (s *SymbolManager)BrodCastToUsers(symbol_mothod_stream string , data  []byte){
 	s.mutex_lock.RLock()
-	clients := append([]*Client(nil) , s.symbol_method_subs[symbol_mothod_stream]...)
+	clients := append([]*Client(nil) , s.Symbol_method_subs[symbol_mothod_stream]...)
 	s.mutex_lock.RUnlock()
 
 	for _ , client := range clients{
