@@ -1,21 +1,23 @@
 package ws
 
 import (
-	"fmt"
 	"encoding/json"
+	contracts "exchange/Contracts"
+	"fmt"
+
 	"github.com/gorilla/websocket"
 	"github.com/labstack/echo/v4"
-	"exchange/contracts"
 )
 
 var upgrader = websocket.Upgrader{}
 
 type ClientMessage struct {
-	Socket *websocket.Conn // connection objexct needs to be sent along with the message 
+	Socket  *websocket.Conn // connection objexct needs to be sent along with the message
 	Payload contracts.Message
 }
 
-var MessageChannel = make(chan ClientMessage , 100)
+var MessageChannel = make(chan ClientMessage, 100)
+
 func wsHandler(c echo.Context) error {
 
 	ws, err := upgrader.Upgrade(c.Response(), c.Request(), nil)
@@ -25,7 +27,7 @@ func wsHandler(c echo.Context) error {
 		return err
 	}
 	defer ws.Close()
-	var mess contracts.Message ;
+	var mess contracts.Message
 	fmt.Println("WebSocket connection established!")
 
 	for {
@@ -38,10 +40,10 @@ func wsHandler(c echo.Context) error {
 			fmt.Println("json error:", err)
 			continue
 		}
-		fmt.Println("Recived message");
+		fmt.Println("Recived message")
 		fmt.Println(mess)
-		MessageChannel <- ClientMessage{Socket: ws , Payload: mess}
-		
+		MessageChannel <- ClientMessage{Socket: ws, Payload: mess}
+
 	}
 }
 

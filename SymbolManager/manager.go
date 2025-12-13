@@ -1,23 +1,125 @@
 package symbolmanager
 
 import (
-	"exchange/Contracts"
-	
+	contracts "exchange/Contracts"
+	"exchange/ws"
 	"sync"
-
 	"github.com/gorilla/websocket"
 )
 
 // receives the message from the web socket go routine lanched oer client , message can be of two typs subscribe and unsubscribe
 // a singelton patteern of the symbol manager
 
-var SymbolManagerInstance *SymbolManager 
+var SymbolManagerInstance *SymbolManager
 var once sync.Once
-type Client struct{
-	ws_conn *websocket.Conn
+
+type Client struct {
+	Conn      *websocket.Conn
+	writeLock sync.Mutex
 }
-type SymbolManager struct{
+
+func (c *Client) WriteMessage(messageType int, data []byte) error {
+	c.writeLock.Lock()
+	defer c.writeLock.Unlock()
+	return c.Conn.WriteMessage(messageType, data)
+}
+
+type SymbolManager struct {
 	symbol_method_subs map[string][]*Client
-	publisher contracts.Publisher 
-	subscriber contracts.Subscriber
+	publisher          contracts.Publisher
+	subscriber         contracts.Subscriber
+	unsubscriber 		contracts.UnSubscriber
+	mutex_lock         sync.RWMutex // this because their can be read write race conditions while updating the map becuase
+	// it is hapoening in differnet go routines
+}
+
+func CreateSymbolManagerSingleton() *SymbolManager {
+	once.Do(func() {
+		SymbolManagerInstance = &SymbolManager{
+			symbol_method_subs: make(map[string][]*Client),
+			publisher:          nil,
+			subscriber:         nil,
+		}
+	})
+	return SymbolManagerInstance
+}
+
+func GetRoomManagerInstance() *SymbolManager {
+	return SymbolManagerInstance
+}
+
+func (s *SymbolManager) StartSymbolMnagaer() {
+	for message := range ws.MessageChannel {
+		switch message.Payload.Method {
+		case "SUBSCRIBE":
+			s.handleSubscribe(message)
+		case "UNSUBSCRIBE":
+			s.handleUnSubscribe(message)
+		}
+	}
+}
+
+func (s *SymbolManager) handleSubscribe(rec_mess ws.ClientMessage) {
+	// if a subscribe request comes , we aqquire the read lock of the map and check if the mess.payload.symbol exists
+	/// if yeh , we add to the user
+	s.mutex_lock.RLock()
+	if len(rec_mess.Payload.Params) == 0{
+		return 
+	}
+	_ , ok := s.symbol_method_subs[rec_mess.Payload.Params[0]]
+	s.mutex_lock.RUnlock()
+	if !ok{
+		s.CreateNewGroup(rec_mess)
+		// subscription can take time so spawned a go routine 
+		go s.subscriber.SubscribeToSymbolMethod(rec_mess.Payload.Params[0])
+		return 
+	}
+	s.mutex_lock.Lock()
+	s.symbol_method_subs[rec_mess.Payload.Params[0]] = append(s.symbol_method_subs[rec_mess.Payload.Params[0]], &Client{Conn: rec_mess.Socket})
+	s.mutex_lock.Unlock()
+
+}
+
+func (s *SymbolManager) handleUnSubscribe(rec_mess ws.ClientMessage) {
+	// unsubscribe messahe 
+	// aquire a read lock and check if it was the only user subscrbed to that event 
+	s.mutex_lock.Lock()
+	defer s.mutex_lock.Unlock()
+	clients, exists := s.symbol_method_subs[rec_mess.Payload.Params[0]]
+    if !exists {
+        return  // Already unsubscribed
+    }
+
+	new_clients := []*Client{}
+
+	for _ , client := range clients{
+		if client.Conn != rec_mess.Socket {
+			new_clients = append(new_clients, client)
+		}
+	}
+
+	if len(new_clients) == 0{
+		// this was the last user , delrte the entry and unsbscribe
+		delete(s.symbol_method_subs , rec_mess.Payload.Params[0])
+		if s.unsubscriber!=nil{
+			s.unsubscriber.UnSubscribeToSymbolMethod(rec_mess.Payload.Params[0])
+		}
+		
+	}else{
+		s.symbol_method_subs[rec_mess.Payload.Params[0]] = new_clients
+	}
+}
+
+
+func (s *SymbolManager)CreateNewGroup(rec_mess ws.ClientMessage){
+	// create if the groupt dosent exist for that symbol 
+	defer s.mutex_lock.Unlock()
+	s.mutex_lock.Lock()
+	clients := []*Client{}
+	if rec_mess.Socket != nil{
+		clients = append(clients, &Client{Conn: rec_mess.Socket})
+	}
+	s.symbol_method_subs[rec_mess.Payload.Params[0]] = clients
+
+	// the pub sub subscription is handled in the above function 
 }

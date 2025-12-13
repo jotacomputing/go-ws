@@ -23,3 +23,7 @@ type  Publisher interface{
 type Subscriber interface{
 	SubscribeToSymbolMethod(channelName string)
 }
+
+type UnSubscriber interface {
+	UnSubscribeToSymbolMethod(channelName string)
+}
