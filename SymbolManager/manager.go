@@ -2,9 +2,8 @@ package symbolmanager
 
 import (
 	"encoding/json"
-	contracts "exchange/Contracts"
+	 "exchange/Contracts"
 	"exchange/ws"
-	"fmt"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -28,8 +27,7 @@ func (c *Client) WriteMessage(messageType int, data []byte) error {
 }
 
 type SymbolManager struct {
-	symbol_method_subs map[string][]*Client
-	publisher          contracts.Publisher
+	symbol_method_subs map[string][]*Client        // keeps a track of the different streams and the subscirbed clients     
 	subscriber         contracts.Subscriber
 	unsubscriber 		contracts.UnSubscriber
 	mutex_lock         sync.RWMutex // this because their can be read write race conditions while updating the map becuase
@@ -40,8 +38,8 @@ func CreateSymbolManagerSingleton() *SymbolManager {
 	once.Do(func() {
 		SymbolManagerInstance = &SymbolManager{
 			symbol_method_subs: make(map[string][]*Client),
-			publisher:          nil,
 			subscriber:         nil,
+			unsubscriber: nil,
 		}
 	})
 	return SymbolManagerInstance
@@ -128,9 +126,9 @@ func (s *SymbolManager)CreateNewGroup(rec_mess ws.ClientMessage){
 }
 
 
-func (s *SymbolManager)BrodCastToUsers(symbol_mothod string , data  []byte){
+func (s *SymbolManager)BrodCastToUsers(symbol_mothod_stream string , data  []byte){
 	s.mutex_lock.RLock()
-	clients := append([]*Client(nil) , s.symbol_method_subs[symbol_mothod]...)
+	clients := append([]*Client(nil) , s.symbol_method_subs[symbol_mothod_stream]...)
 	s.mutex_lock.RUnlock()
 
 	for _ , client := range clients{
@@ -138,9 +136,9 @@ func (s *SymbolManager)BrodCastToUsers(symbol_mothod string , data  []byte){
 	}
 }
 
-func (s *SymbolManager)BrodCastFromRemote(message contracts.MessageFromPubSubForUser){
+func (s *SymbolManager)BroadCasteFromRemote(message contracts.MessageFromPubSubForUser){
 	data , _ := json.Marshal(message)
-	//s.BrodCastToUsers(message.Params[0] , data)
-	fmt.Println(data)
+	s.BrodCastToUsers(message.Stream , data)
+	
 }
 

@@ -14,19 +14,17 @@ type MessageFromUser struct {
     Params []string `json:"params"`
     ID     int      `json:"id"`
 }
-type  Publisher interface{
-	PublishToMembers(channelName string , mess []byte)error
-}
 
 type Subscriber interface{
-	SubscribeToSymbolMethod(channelName string)
+	SubscribeToSymbolMethod(StreamName string)
 }
 
 type UnSubscriber interface {
-	UnSubscribeToSymbolMethod(channelName string)
+	UnSubscribeToSymbolMethod(StreamName string)
 }
-
-
+type BroadCaster interface {
+	BroadCasteFromRemote(mess MessageFromPubSubForUser)
+}
 type MessageFromPubSubForUser struct {
 	Stream string          `json:"stream"`
     Data   json.RawMessage `json:"data"` //  raw for routing, then unmarshal specific type
