@@ -15,15 +15,23 @@ type ClientMessage struct {
 	Payload contracts.MessageFromUser
 }
 type Server struct{
-	onDisconnect func(*websocket.Conn)
+	subscriber contracts.SubscriberForWs
+	unsubscriber contracts.UnSubscriberForWs 
+	cleanup contracts.CleanUpForWs
 }
 
-func NewServer(cleanupfunc func(*websocket.Conn)) *Server{
-	return &Server{
-		onDisconnect: cleanupfunc,
-	}
+func NewServer(
+    sub contracts.SubscriberForWs,
+    unsub contracts.UnSubscriberForWs,
+    cleanup contracts.CleanUpForWs,
+) *Server {
+    return &Server{
+        subscriber:   sub,
+        unsubscriber: unsub,
+        cleanup:      cleanup,
+    }
 }
-var MessageChannel = make(chan ClientMessage, 100)
+
 
 func (s *Server)wsHandler(c echo.Context) error {
 
@@ -33,7 +41,10 @@ func (s *Server)wsHandler(c echo.Context) error {
 		fmt.Println("UPGRADE ERROR:", err)
 		return err
 	}
-	defer ws.Close()
+	defer func(){
+		ws.Close()
+		s.cleanup.CleanupConnection(ws)
+	}()
 
 	var mess contracts.MessageFromUser
 	//fmt.Println("WebSocket connection established!")
@@ -49,8 +60,17 @@ func (s *Server)wsHandler(c echo.Context) error {
 			continue
 		}
 		fmt.Println("Recived message")
-		fmt.Println(mess)
-		MessageChannel <- ClientMessage{Socket: ws, Payload: mess}
+		switch mess.Method{
+		case contracts.SUBSCRIBE:
+			if len(mess.Params) > 0 {
+				s.subscriber.Subscribe(mess.Params[0] , ws)
+			}
+
+		case contracts.UNSUBSCRIBE :
+			if len(mess.Params) > 0 {
+				s.unsubscriber.UnSubscribe(mess.Params[0] , ws)
+			}
+		}
 
 	}
 }
