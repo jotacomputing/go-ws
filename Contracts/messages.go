@@ -20,9 +20,10 @@ type MessageFromPubSubForUser struct {
     Data   json.RawMessage `json:"data"` //  raw for routing, then unmarshal specific type
 }
 
+// the order book 
 type DepthData struct {
     Event     string     `json:"e"`           // "depth"
-    Symbol    string     `json:"s"`         
+    Symbol    uint32     `json:"s"`         
     EventTime int64      `json:"E"`           // Millisecond timestamp
     TradeTime int64      `json:"T"`           // Transaction time
     FirstID   int64      `json:"U"`           // First update ID
@@ -31,9 +32,10 @@ type DepthData struct {
     Asks      [][]string `json:"a"`           // [["price", "qty"], ...]
 }
 
+// best bid best ask 
 type BookTickerData struct {
     Event       string `json:"e"`  // "bookTicker"
-    Symbol      string `json:"s"` 
+    Symbol      uint32 `json:"s"` 
     EventTime   int64  `json:"E"`
     TradeTime   int64  `json:"T"`
     BestBid     string `json:"b"`  // Best bid price
@@ -43,23 +45,24 @@ type BookTickerData struct {
     UpdateID    int64  `json:"u"`
 }
 
+// each publish trade
 type TradeData struct {
     Event        string `json:"e"`  // "trade"
-    Symbol       string `json:"s"` 
+    Symbol       uint32 `json:"s"` 
     EventTime    int64  `json:"E"`
     TradeTime    int64  `json:"T"`
     TradeID      int64  `json:"t"`  // Unique trade ID
-    Price        string `json:"p"`  // Execution price
-    Quantity     string `json:"q"`  // Quantity traded
+    Price        uint64 `json:"p"`  // Execution price
+    Quantity     uint32 `json:"q"`  // Quantity traded
     BuyerOrderID string `json:"a"`  // Buyer order ID
     SellerOrderID string `json:"b"` // Seller order ID
     IsBuyerMaker bool   `json:"m"`  // true = buyer placed limit order
 }
-
+// last traded price 
 type TickerData struct {
     Event     string `json:"e"`  // "ticker" 
-    Symbol    string `json:"s"`  
+    Symbol    uint32 `json:"s"`  
     EventTime int64  `json:"E"`
-    Price     string `json:"p"`  // Last traded price 
+    Price     uint64 `json:"p"`  // Last traded price 
     // can add volume and other fields 
 }
