@@ -3,6 +3,7 @@ package ws
 import (
 	"encoding/json"
 	contracts "exchange/Contracts"
+	hub "exchange/Hub"
 	symbolmanager "exchange/SymbolManager"
 	"fmt"
 
@@ -20,17 +21,20 @@ type Server struct {
 	// functions from symbol manager that just pass the commands into the channel
 	// no need of the interface
 	symbol_manager_ptr *symbolmanager.SymbolManager
+	order_events_hub_ptr 	*hub.OrderEventsHub
 }
 
 func NewServer(
 	symbo_manager_ptr *symbolmanager.SymbolManager,
+	order_events_hub_ptr 	*hub.OrderEventsHub, // for subscirbing unsibsicribing 
 ) *Server {
 	return &Server{
 		symbol_manager_ptr: symbo_manager_ptr,
+		order_events_hub_ptr: order_events_hub_ptr,
 	}
 }
 
-func (s *Server) wsHandler(c echo.Context) error {
+func (s *Server) wsHandlerMd(c echo.Context) error {
 
 	ws, err := upgrader.Upgrade(c.Response(), c.Request(), nil)
 
@@ -72,11 +76,60 @@ func (s *Server) wsHandler(c echo.Context) error {
 	}
 }
 
+type ClientForOrderEvents struct {
+	UserId 	uint64
+	Conn 	*websocket.Conn
+	SendCh	chan []byte
+	hub_ptr *hub.OrderEventsHub // for cleanp logic 
+}
+
+// interface functions for hub 
+func (cl *ClientForOrderEvents)GetUserId()uint64{
+	return cl.UserId
+}
+func (cl *ClientForOrderEvents)GetConnObj()*websocket.Conn{
+	return cl.Conn
+}
+func (cl *ClientForOrderEvents)GetSendCh()chan []byte{
+	return cl.SendCh
+}
+
+func(coe * ClientForOrderEvents)ReadPumpForOrderEv(){
+
+}
+
+func (coe *ClientForOrderEvents)WritePumpForOrderEv(){
+
+}
+
+func (s*Server)wsHandlerOrderEvents(c echo.Context)error{
+	// authenticate thishandler , give me the exracted userId 
+	user_id := uint64(0) // give this from auth 
+	conn , err := upgrader.Upgrade(c.Response() , c.Request() , nil)
+	if err!=nil{
+		fmt.Println("error upgrading connection")
+		return err
+	}
+
+	client := &ClientForOrderEvents{
+		UserId: user_id,
+		Conn: conn,
+		SendCh: make(chan []byte , 256),
+	}
+
+	go client.ReadPumpForOrderEv()
+	go client.WritePumpForOrderEv()
+
+
+	s.order_events_hub_ptr.Register
+}
+
 func (s *Server) CreateServer() {
 	fmt.Println("BOOTING SERVER...")
 
 	e := echo.New()
-	e.GET("/ws", s.wsHandler)
+	e.GET("/ws/marketData", s.wsHandlerMd)
+	e.GET("/ws/OrderEvents", s.wsHandlerOrderEvents)
 
 	fmt.Println("LISTENING on :8080 ...")
 

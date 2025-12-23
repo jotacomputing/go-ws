@@ -6,3 +6,4 @@ const (
 	QueryGetHoldings
 	QueryAddUser
 )
+
