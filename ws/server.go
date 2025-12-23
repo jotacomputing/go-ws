@@ -94,12 +94,17 @@ func (cl *ClientForOrderEvents)GetSendCh()chan []byte{
 	return cl.SendCh
 }
 
-func(coe * ClientForOrderEvents)ReadPumpForOrderEv(){
 
-}
 
 func (coe *ClientForOrderEvents)WritePumpForOrderEv(){
-
+	// will contnously recive and perform writes 
+	for{
+		message  := <-coe.SendCh
+		if err := coe.Conn.WriteMessage(websocket.BinaryMessage , message); err!=nil{
+			return 
+		}
+		
+	}
 }
 
 func (s*Server)wsHandlerOrderEvents(c echo.Context)error{
@@ -116,12 +121,29 @@ func (s*Server)wsHandlerOrderEvents(c echo.Context)error{
 		Conn: conn,
 		SendCh: make(chan []byte , 256),
 	}
+	defer func(){
+		conn.Close()
+		s.order_events_hub_ptr.UnRegister(client)
+		// or
+		//
+		//client.hub_ptr.UnRegister(conn)
+	}()
 
-	go client.ReadPumpForOrderEv()
 	go client.WritePumpForOrderEv()
+	s.order_events_hub_ptr.Register(client)
 
+	
 
-	s.order_events_hub_ptr.Register
+	for {
+		_ , _ , err:= client.Conn.ReadMessage()
+		if err!=nil{
+			fmt.Println("read error")
+			return nil
+		}
+	}
+	// read routine dosent do anyhitng 
+
+	
 }
 
 func (s *Server) CreateServer() {
